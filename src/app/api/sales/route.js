@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db/db";
+import sqlite3 from "sqlite3";
+import { open } from "sqlite";
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const date = searchParams.get("date");
+
   try {
-    const stmt = db.prepare(`
+    const db = await open({
+      filename: "./sales.db",
+      driver: sqlite3.Database,
+    });
+
+    let query = `
       SELECT 
         id,
         business,
@@ -11,16 +20,19 @@ export async function GET() {
         price,
         description,
         datetime(created_at, 'localtime') as created_at
-      FROM sales
+      FROM sales 
+      WHERE date(created_at, 'localtime') = date(?, 'localtime')
       ORDER BY created_at DESC
-    `);
+    `;
+    const sales = await db.all(query, [date]);
 
-    const sales = stmt.all();
+    await db.close();
+
     return NextResponse.json({ sales });
   } catch (error) {
-    console.error("Error fetching sales:", error);
+    console.error("Database error:", error);
     return NextResponse.json(
-      { error: "Error fetching sales" },
+      { error: "Error al acceder a la base de datos" },
       { status: 500 }
     );
   }
@@ -38,22 +50,29 @@ export async function POST(request) {
       );
     }
 
+    const db = await open({
+      filename: "./sales.db",
+      driver: sqlite3.Database,
+    });
+
     // Insert the sale into the database
-    const stmt = db.prepare(`
+    const query = `
       INSERT INTO sales (business, salesperson, price, description)
       VALUES (?, ?, ?, ?)
-    `);
+    `;
 
-    const result = stmt.run(
+    const result = await db.run(query, [
       data.business,
       data.salesperson,
       data.price,
-      data.description || null
-    );
+      data.description || null,
+    ]);
+
+    await db.close();
 
     return NextResponse.json({
       success: true,
-      id: result.lastInsertRowid,
+      id: result.lastID,
     });
   } catch (error) {
     console.error("Error saving sale:", error);

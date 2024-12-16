@@ -30,15 +30,16 @@ export default function VentasPage() {
   const [filters, setFilters] = useState({
     business: "",
     salesperson: "",
+    selectedDate: new Date().toISOString().split("T")[0],
   });
 
   useEffect(() => {
     fetchSales();
-  }, []);
+  }, [filters.selectedDate]);
 
   const fetchSales = async () => {
     try {
-      const response = await fetch("/api/sales");
+      const response = await fetch(`/api/sales?date=${filters.selectedDate}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -108,7 +109,8 @@ export default function VentasPage() {
 
     // Group sales by hour
     filteredSales.forEach((sale) => {
-      const hour = new Date(sale.created_at).getHours();
+      const saleDate = new Date(sale.created_at);
+      const hour = saleDate.getHours();
       hourlyData[hour] += parseFloat(sale.price);
       hourlyCount[hour]++;
     });
@@ -122,8 +124,8 @@ export default function VentasPage() {
         {
           label: "Ventas por Hora",
           data: hourlyData,
-          backgroundColor: "rgba(59, 130, 246, 0.5)", // blue-500 with opacity
-          borderColor: "rgb(59, 130, 246)", // blue-500
+          backgroundColor: "rgba(59, 130, 246, 0.5)",
+          borderColor: "rgb(59, 130, 246)",
           borderWidth: 1,
         },
       ],
@@ -132,6 +134,7 @@ export default function VentasPage() {
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top",
@@ -165,6 +168,24 @@ export default function VentasPage() {
     },
   };
 
+  const changeDate = (days) => {
+    const currentDate = new Date(filters.selectedDate);
+    currentDate.setDate(currentDate.getDate() + days);
+    setFilters((prev) => ({
+      ...prev,
+      selectedDate: currentDate.toISOString().split("T")[0],
+    }));
+  };
+
+  const formatDisplayDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("es-MX", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -189,13 +210,33 @@ export default function VentasPage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Header with back button */}
-        <div className="mb-6 flex items-center">
+        <div className="mb-6 flex items-center justify-between">
           <Link
             href="/"
             className="text-sm text-blue-700 hover:text-blue-900 hover:underline font-medium"
           >
             ← Volver al registro
           </Link>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => changeDate(-1)}
+              className="px-3 py-2 text-sm font-medium text-blue-700 hover:text-blue-900"
+            >
+              ← Día anterior
+            </button>
+
+            <span className="text-gray-900 font-medium">
+              {formatDisplayDate(filters.selectedDate)}
+            </span>
+
+            <button
+              onClick={() => changeDate(1)}
+              className="px-3 py-2 text-sm font-medium text-blue-700 hover:text-blue-900"
+            >
+              Día siguiente →
+            </button>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -260,7 +301,7 @@ export default function VentasPage() {
 
         {/* Hourly Sales Chart */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <div className="w-full h-[400px]">
+          <div className="w-full" style={{ height: "400px" }}>
             <Bar data={prepareHourlyChartData()} options={chartOptions} />
           </div>
         </div>
